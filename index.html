@@ -11,6 +11,7 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
   <style>
     body {
@@ -29,23 +30,23 @@
       overflow-wrap: break-word;
     }
     .poster-bullet {
-  display: flex;
-  align-items: flex-start; /* for top align */
-  padding-left: 4rem; /* space for bullet */
-  position: relative;
-}
+      display: flex;
+      align-items: flex-start;
+      padding-left: 4rem;
+      position: relative;
+    }
 
-.poster-bullet::before {
-  content: '';
-  position: absolute;
-  top: 70px; /* adjust bullet top */
-  left: 0;
-  width: 2.5rem;
-  height: 2.5rem;
-  background-image: url('bullet.png');
-  background-size: contain;
-  background-repeat: no-repeat;
-}
+    .poster-bullet::before {
+      content: '';
+      position: absolute;
+      top: 70px;
+      left: 0;
+      width: 2.5rem;
+      height: 2.5rem;
+      background-image: url('bullet.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
 
     #dateText {
       font-family: 'Noto Sans Malayalam', sans-serif;
@@ -68,9 +69,32 @@
     textarea {
       font-family: 'Arima', sans-serif;
     }
+    .loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    .status-message {
+      padding: 8px 16px;
+      border-radius: 4px;
+      margin: 8px 0;
+      display: none;
+    }
+    .status-success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .status-error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
   </style>
 </head>
 <body class="p-4">
+
+  <!-- Status Messages -->
+  <div id="statusMessage" class="status-message"></div>
 
   <!-- Hijri Month & Day Selector -->
   <div class="mb-4 flex flex-wrap gap-4">
@@ -125,7 +149,8 @@
 
   <div class="mt-4 flex gap-4">
     <button onclick="downloadPoster()" class="bg-green-600 text-white px-4 py-2 rounded">Download</button>
-    <button onclick="saveData()" class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
+    <button id="saveBtn" onclick="saveData()" class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
+    <button onclick="deleteData()" class="bg-red-600 text-white px-4 py-2 rounded">Delete</button>
   </div>
 
   <!-- Poster Preview -->
@@ -149,19 +174,44 @@
   </div>
 
   <script>
+    // Supabase configuration
+    const SUPABASE_URL = 'https://jnuyzhmeebaeeckkaobb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpudXl6aG1lZWJhZWVja2thb2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzNjkzNDUsImV4cCI6MjA2ODk0NTM0NX0.0dDorsXVM64DLrToS_NBEb6UaPO6AXNZvgXLdoacaa0';
+    
+    const { createClient } = supabase;
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     const hijriMonths = ["മുഹറം", "സഫർ", "റബീഉല്‍ അവ്വല്‍", "റബീഉല്‍ ആഖര്‍", "ജുമാദുല്‍ അവ്വല്‍", "ജുമാദുല്‍ ആഖര്‍", "റജബ്", "ശഅ്ബാന്‍", "റമളാന്‍", "ശവ്വാല്‍", "ദുല്‍ ഖഅദ്", "ദുല്‍ ഹജ്‌ജ"];
     const malayalamDays = ['ഞായര്‍', 'തിങ്കള്‍', 'ചൊവ്വ', 'ബുധന്‍', 'വ്യാഴം', 'വെള്ളി', 'ശനി'];
     const malayalamMonths = ['ജനുവരി', 'ഫെബ്രുവരി', 'മാര്‍ച്ച്', 'ഏപ്രില്‍', 'മേയ്', 'ജൂണ്‍', 'ജൂലൈ', 'ആഗസ്റ്റ്', 'സെപ്റ്റംബര്‍', 'ഒക്ടോബര്‍', 'നവംബര്‍', 'ഡിസംബര്‍'];
 
     const monthSelect = document.getElementById("monthSelect");
     const daySelect = document.getElementById("daySelect");
+    const statusMessage = document.getElementById("statusMessage");
+    const saveBtn = document.getElementById("saveBtn");
 
+    // Populate month dropdown
     hijriMonths.forEach(month => {
       const option = document.createElement("option");
       option.value = month;
       option.textContent = month;
       monthSelect.appendChild(option);
     });
+
+    function showStatus(message, isError = false) {
+      statusMessage.textContent = message;
+      statusMessage.className = `status-message ${isError ? 'status-error' : 'status-success'}`;
+      statusMessage.style.display = 'block';
+      setTimeout(() => {
+        statusMessage.style.display = 'none';
+      }, 3000);
+    }
+
+    function setLoading(loading) {
+      document.body.className = loading ? 'loading' : '';
+      saveBtn.disabled = loading;
+      saveBtn.textContent = loading ? 'Saving...' : 'Save';
+    }
 
     function generateBulletText(input) {
       return input.split('\n').map(line => line.trim() ? `<div class="poster-bullet">${line}</div>` : '').join('');
@@ -193,36 +243,114 @@
       });
     }
 
-    function saveData() {
+    async function saveData() {
       const month = monthSelect.value;
       const day = daySelect.value;
-      if (!month || !day) return alert("ദിവസവും മാസവും തിരഞ്ഞെടുക്കണം!");
+      
+      if (!month || !day) {
+        showStatus("ദിവസവും മാസവും തിരഞ്ഞെടുക്കണം!", true);
+        return;
+      }
 
-      const key = `${month}-${day}`;
-      const data = {
-        title1: document.getElementById('input1').value,
-        title2: document.getElementById('input2').value
-      };
-      localStorage.setItem(key, JSON.stringify(data));
-      alert("സേവ് ചെയ്തു ✅");
+      setLoading(true);
+
+      try {
+        const data = {
+          hijri_month: month,
+          hijri_day: parseInt(day),
+          title1_content: document.getElementById('input1').value,
+          title2_content: document.getElementById('input2').value
+        };
+
+        const { error } = await supabaseClient
+          .from('poster_data')
+          .upsert(data, { 
+            onConflict: 'hijri_month,hijri_day',
+            ignoreDuplicates: false 
+          });
+
+        if (error) {
+          throw error;
+        }
+
+        showStatus("സേവ് ചെയ്തു ✅");
+      } catch (error) {
+        console.error('Save error:', error);
+        showStatus("സേവ് ചെയ്യുന്നതിൽ പിശക് സംഭവിച്ചു!", true);
+      } finally {
+        setLoading(false);
+      }
     }
 
-    function loadSavedData() {
+    async function loadSavedData() {
       const month = monthSelect.value;
       const day = daySelect.value;
-      const key = `${month}-${day}`;
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        const data = JSON.parse(saved);
-        document.getElementById('input1').value = data.title1 || '';
-        document.getElementById('input2').value = data.title2 || '';
-      } else {
+      
+      if (!month || !day) return;
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('poster_data')
+          .select('title1_content, title2_content')
+          .eq('hijri_month', month)
+          .eq('hijri_day', parseInt(day))
+          .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
+          throw error;
+        }
+
+        if (data) {
+          document.getElementById('input1').value = data.title1_content || '';
+          document.getElementById('input2').value = data.title2_content || '';
+        } else {
+          document.getElementById('input1').value = '';
+          document.getElementById('input2').value = '';
+        }
+      } catch (error) {
+        console.error('Load error:', error);
+        showStatus("ഡാറ്റ ലോഡ് ചെയ്യുന്നതിൽ പിശക് സംഭവിച്ചു!", true);
+        // Clear inputs on error
         document.getElementById('input1').value = '';
         document.getElementById('input2').value = '';
       }
 
       updateAutoDate();
       generatePoster();
+    }
+
+    async function deleteData() {
+      const month = monthSelect.value;
+      const day = daySelect.value;
+      
+      if (!month || !day) {
+        showStatus("ദിവസവും മാസവും തിരഞ്ഞെടുക്കണം!", true);
+        return;
+      }
+
+      if (!confirm("ഈ ഡാറ്റ ഡിലീറ്റ് ചെയ്യാൻ ശരിക്കും ആഗ്രഹിക്കുന്നുണ്ടോ?")) {
+        return;
+      }
+
+      try {
+        const { error } = await supabaseClient
+          .from('poster_data')
+          .delete()
+          .eq('hijri_month', month)
+          .eq('hijri_day', parseInt(day));
+
+        if (error) {
+          throw error;
+        }
+
+        document.getElementById('input1').value = '';
+        document.getElementById('input2').value = '';
+        generatePoster();
+        showStatus("ഡാറ്റ ഡിലീറ്റ് ചെയ്തു ✅");
+      } catch (error) {
+        console.error('Delete error:', error);
+        showStatus("ഡിലീറ്റ് ചെയ്യുന്നതിൽ പിശക് സംഭവിച്ചു!", true);
+      }
     }
 
     function updateAutoDate() {
@@ -240,6 +368,7 @@
       document.getElementById('input3').value = fullDate;
     }
 
+    // Event listeners
     ['input1', 'input2'].forEach(id => {
       document.getElementById(id).addEventListener('input', generatePoster);
     });
@@ -247,7 +376,17 @@
     monthSelect.addEventListener('change', loadSavedData);
     daySelect.addEventListener('change', loadSavedData);
 
-    window.onload = generatePoster;
+    // Initialize on page load
+    window.onload = () => {
+      generatePoster();
+      // Test Supabase connection
+      supabaseClient.from('poster_data').select('count').single()
+        .then(() => console.log('Supabase connected successfully'))
+        .catch(err => {
+          console.error('Supabase connection error:', err);
+          showStatus("ഡാറ്റാബേസ് കണക്ഷൻ പിശക്!", true);
+        });
+    };
   </script>
 </body>
 </html>
