@@ -218,9 +218,22 @@
     }
 
     function generatePoster() {
-      document.getElementById('text1').innerHTML = generateBulletText(document.getElementById('input1').value);
-      document.getElementById('text2').innerHTML = generateBulletText(document.getElementById('input2').value);
+      const input1Value = document.getElementById('input1').value;
+      const input2Value = document.getElementById('input2').value;
+      const title2Section = document.getElementById('title2Section');
+      
+      // Update text content
+      document.getElementById('text1').innerHTML = generateBulletText(input1Value);
+      document.getElementById('text2').innerHTML = generateBulletText(input2Value);
       document.getElementById('dateText').innerText = document.getElementById('input3').value;
+      
+      // Show/hide Title 2 section based on input2 content
+      if (input2Value.trim() === '') {
+        title2Section.style.display = 'none';
+      } else {
+        title2Section.style.display = 'block';
+      }
+      
       document.getElementById('posterScalePreview').style.transform = "scale(0.3)";
     }
 
